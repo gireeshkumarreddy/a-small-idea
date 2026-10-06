@@ -19,6 +19,27 @@ A short film-strip website that turns into an invitation.
 | 8 | `sunflowers` | "This is the part where I get shy." / "Will you go on a trip with me?" + two buttons |
 | 9 | `eternity` | Opens from the button she taps: "Good." (or "Of course.") and a small itinerary card |
 
+## Living pictures
+
+Every frame moves in its own way, and reacts when she moves over it, touches it or taps it:
+
+| Frame | What moves |
+|-------|-----------|
+| daisy | Clouds drift, the leaves sway, the butterfly lands and rests |
+| run — "I like you." | Wind rolls through the grass; a finger or cursor parts it; a tap sends a ripple and light motes |
+| meadow | The hill grass and flower meadow sway; tiny petals drift past |
+| cosmos | The flowers sway, pink petals float up through the light, the sun haze glows |
+| dance — "We've been out a lot." | All the flowers move, the clouds drift, yellow petals blow across |
+| campfire | The fire flickers and breathes, sparks rise, the firelight flickers on their faces, stars twinkle, fireflies; tap the fire and it flares |
+| sunset | Clouds drift, the sea shimmers and glints, birds glide, fireflies over the grass |
+| grass | Wind through the grass; dandelion seeds float up |
+| sunflowers | The bouquet stirs, petals fall |
+| eternity | The light trails shimmer and glow, motes drift |
+
+The photos are redrawn with WebGL using per-image "maps" (the `LIFE` block in `invitation.html`) that mark
+where things sway, drift, burn or glint, with the people cut out. Without WebGL, or with reduced motion
+switched on, the photos simply stay still.
+
 ## Files
 
 - `invitation.html` — the page (styles, markup and script in one file)

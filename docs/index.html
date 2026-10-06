@@ -156,6 +156,17 @@ body.tone-light .cursor__label { color: var(--white); }
 .plate.is-live .plate__pan { will-change: transform; }
 .plate__pan > img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; display: block; object-fit: cover; user-select: none; -webkit-user-drag: none; }
 .dim { position: absolute; inset: 0; z-index: 8; background: var(--night); opacity: 0; pointer-events: none; }
+
+/* Living pictures: a WebGL copy of each photo that breathes, plus a layer of petals, sparks and seeds */
+.plate__pan > canvas.live { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .9s var(--ease); }
+.plate__pan > canvas.live.is-on { opacity: 1; }
+.fx { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; pointer-events: none; }
+.hint { margin: .35rem 0 0; display: inline-flex; align-items: center; gap: .7rem; font: 500 .6rem/1.3 var(--f-ui); letter-spacing: .22em; text-transform: uppercase; opacity: .8; }
+.hint::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; border: 1px solid currentColor; animation: hintPing 2.6s var(--ease) infinite; }
+@keyframes hintPing { 0% { box-shadow: 0 0 0 0 rgba(242, 237, 229, .55); } 70%, 100% { box-shadow: 0 0 0 11px rgba(242, 237, 229, 0); } }
+.scene__amb { animation: amb 24s ease-in-out infinite alternate; }
+@keyframes amb { from { transform: scale(1.02) translate3d(-1.2%, .6%, 0); } to { transform: scale(1.1) translate3d(1.2%, -.8%, 0); } }
+@media (prefers-reduced-motion: reduce) { .scene__amb { animation: none; } }
 .shade { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .shade--top { background: linear-gradient(180deg, rgba(12, 11, 10, .62) 0%, rgba(12, 11, 10, .28) 30%, rgba(12, 11, 10, 0) 52%, rgba(12, 11, 10, 0) 80%, rgba(12, 11, 10, .32) 100%); }
 .shade--bottom { background: linear-gradient(0deg, rgba(12, 11, 10, .74) 0%, rgba(12, 11, 10, .32) 34%, rgba(12, 11, 10, 0) 56%), linear-gradient(180deg, rgba(12, 11, 10, .34) 0%, rgba(12, 11, 10, 0) 18%); }
@@ -485,6 +496,7 @@ html:not(.is-land) .foot { display: none; }
   const SCENES = [
     { key: 'run', r: 816 / 1456, fx: .5, f: [.5, .54], a: [.52, .5], side: 'left', mpos: 'top', enter: 'up', chapter: '01 — Honestly',
       eyebrow: 'Okay. The personal bit.', title: 'I like you.', sub: 'Not in a complicated way. In a my-day-gets-better-when-you’re-in-it way.',
+      hint: ['Move through the grass. Click it too.', 'Touch the grass. Tap it too.'],
       alt: 'Seen from above, two people run across a field of tall green grass.' },
     { key: 'meadow', r: 736 / 1307, fx: .5, f: [.62, .6], a: [.58, .56], side: 'right', mpos: 'top', enter: 'up',
       eyebrow: 'Also', title: 'It’s easy with you.', sub: 'Talking, or not talking. Both feel right.',
@@ -497,6 +509,7 @@ html:not(.is-land) .foot { display: none; }
       alt: 'A painting of two people dancing in a field of yellow wildflowers under a blue sky.' },
     { key: 'campfire', r: 736 / 1308, fx: .5, f: [.64, .66], a: [.62, .62], side: 'left', mpos: 'top', enter: 'up',
       eyebrow: 'Every time', title: 'Every one of them was good.', sub: 'Some of them I still replay.',
+      hint: ['Click the fire', 'Tap the fire'],
       alt: 'An illustration of two people by a campfire at night; one plays guitar while the other listens.' },
     { key: 'sunset', r: 1125 / 2000, fx: .49, f: [.5, .56], a: [.46, .5], side: 'right', mpos: 'bottom', enter: 'up',
       eyebrow: 'But', title: 'This one, I want to be special.', sub: `Not an evening. Four days, ${CONFIG.dates.short}.`,
@@ -512,6 +525,11 @@ html:not(.is-land) .foot { display: none; }
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
   const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FINE = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const COARSE = matchMedia('(pointer: coarse)').matches;
+  const MOTION = FINE && !RM;
 
   /* Build scenes 1–7 ------------------------------------------------------ */
   const askEl = $('#sAsk');
@@ -533,15 +551,12 @@ html:not(.is-land) .foot { display: none; }
         <p class="eyebrow" data-hide>${esc(sc.eyebrow)}</p>
         <h2 class="copy__title" data-hide>${esc(sc.title)}</h2>
         <p class="copy__sub" data-hide>${esc(sc.sub)}</p>
+        ${sc.hint && !RM ? `<p class="hint" data-hide>${esc(FINE ? sc.hint[0] : sc.hint[1])}</p>` : ''}
       </div>`;
     askEl.before(el);
     sc.el = el;
   });
   $('#afterAmb').style.background = `url("${AMB.eternity}") center / cover`;
-
-  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const FINE = matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const MOTION = FINE && !RM;
 
   if (!window.gsap || !window.ScrollTrigger || !window.Lenis) {
     root.classList.add('no-motion'); root.classList.remove('is-prologue');
@@ -576,15 +591,20 @@ html:not(.is-land) .foot { display: none; }
   lenis.stop();
 
   /* Pointer ---------------------------------------------------------------- */
-  const M = { tx: 0, ty: 0, x: 0, y: 0, px: -999, py: -999, moved: false };
+  const M = { tx: 0, ty: 0, x: 0, y: 0, px: -999, py: -999, moved: false, touchAt: -1e9, inside: false };
   const cur = { el: $('#cursor'), dot: $('.cursor__dot'), ring: $('.cursor__ring'), label: $('#cursorLabel'), rx: vp.w / 2, ry: vp.h / 2 };
+  // a finger keeps steering the living pictures even while the page scrolls under it
+  const onTouch = (e) => { const t = e.touches[0]; if (!t) return; M.px = t.clientX; M.py = t.clientY; M.touchAt = performance.now(); };
+  addEventListener('touchstart', onTouch, { passive: true });
+  addEventListener('touchmove', onTouch, { passive: true });
   addEventListener('pointermove', (e) => {
     M.px = e.clientX; M.py = e.clientY;
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse') { M.touchAt = performance.now(); return; }
+    M.inside = true;
     M.tx = (e.clientX / vp.w) * 2 - 1; M.ty = (e.clientY / vp.h) * 2 - 1;
     if (!M.moved) { M.moved = true; cur.el.classList.remove('is-hidden'); cur.rx = M.px; cur.ry = M.py; }
   }, { passive: true });
-  document.addEventListener('mouseleave', () => { M.tx = 0; M.ty = 0; cur.el.classList.add('is-hidden'); });
+  document.addEventListener('mouseleave', () => { M.tx = 0; M.ty = 0; M.inside = false; cur.el.classList.add('is-hidden'); });
   document.addEventListener('mouseenter', () => { if (M.moved) cur.el.classList.remove('is-hidden'); });
 
   /* Text ------------------------------------------------------------------- */
@@ -685,6 +705,10 @@ html:not(.is-land) .foot { display: none; }
       const { tx, ty, z } = this.geo();
       return { x: this.W / 2 + z * (fx * this.pw - (this.W / 2 - tx)), y: this.H / 2 + z * (fy * this.ph - (this.H / 2 - ty)) };
     }
+    fromLocal(x, y) { // position inside the plate box -> image point
+      const { tx, ty, z } = this.geo();
+      return { u: ((x - this.W / 2) / z + (this.W / 2 - tx)) / this.pw, v: ((y - this.H / 2) / z + (this.H / 2 - ty)) / this.ph };
+    }
     render() {
       const { tx, ty, z } = this.geo(), s = this.s;
       const t = `translate3d(${tx.toFixed(2)}px,${ty.toFixed(2)}px,0) rotateX(${s.rx.toFixed(3)}deg) rotateY(${s.ry.toFixed(3)}deg) scale(${z.toFixed(4)})`;
@@ -719,6 +743,466 @@ html:not(.is-land) .foot { display: none; }
   ];
   let chap = 'Prologue';
   FRAMES.forEach((f) => { chap = f.chapter || chap; f.chapter = chap; });
+
+  /* Living pictures -------------------------------------------------------- */
+  // Each map paints where a picture may move: sway (grass, flowers, water), drift (clouds),
+  // fire (flames and the light they throw) and glow (stars, glints, light trails). People are cut out.
+  // Shapes are in image coordinates: band [y0, y1, feather], el [x, y, rx, ry].
+  const LIFE = {
+    daisy: { amt: [0.8, 1, 0, 0], dir: [1, -0.12], map: [
+      { ch: 'drift', band: [0, 0.8, 0.05] }, { ch: 'drift', cut: true, el: [0.47, 0.6, 0.26, 0.12], hard: 0.7 }, { ch: 'drift', cut: true, el: [0.485, 0.76, 0.045, 0.1] },
+      { ch: 'sway', band: [0.8, 1, 0.05], v: 0.8 }, { ch: 'sway', el: [0.485, 0.82, 0.05, 0.1], v: 0.3 } ] },
+    run: { amt: [1.25, 0, 0, 0], map: [
+      { ch: 'sway', band: [0, 1, 0] }, { ch: 'sway', cut: true, el: [0.41, 0.56, 0.075, 0.07], hard: 0.6 }, { ch: 'sway', cut: true, el: [0.62, 0.52, 0.07, 0.07], hard: 0.6 } ],
+      swarm: [{ kind: 'mote', n: 16, rgb: '255,250,225', wind: [10, -5] }], burst: { kind: 'mote', n: 22 } },
+    meadow: { amt: [1, 0, 0, 0], map: [
+      { ch: 'sway', band: [0, 0.47, 0.03], v: 0.55 }, { ch: 'sway', band: [0.48, 0.55, 0.02], v: 0.3 }, { ch: 'sway', band: [0.56, 1, 0.03] },
+      { ch: 'sway', cut: true, el: [0.37, 0.72, 0.17, 0.22], hard: 0.65 }, { ch: 'sway', cut: true, el: [0.66, 0.71, 0.16, 0.21], hard: 0.65 } ],
+      swarm: [{ kind: 'petal', n: 14, rgb: ['255,255,255', '255,228,120', '170,196,255'], size: [1.6, 3], wind: [22, 5] }, { kind: 'mote', n: 10, rgb: '255,248,210', wind: [12, -4] }],
+      burst: { kind: 'petal', n: 16 } },
+    cosmos: { amt: [1.15, 0, 0, 0.8], map: [
+      { ch: 'sway', band: [0.36, 1, 0.06] }, { ch: 'sway', cut: true, el: [0.375, 0.47, 0.11, 0.17], hard: 0.65 }, { ch: 'sway', cut: true, el: [0.6, 0.49, 0.1, 0.15], hard: 0.65 },
+      { ch: 'glow', el: [0.95, 0.06, 0.45, 0.3] }, { ch: 'glow', band: [0.8, 1, 0.05], v: 0.7 } ],
+      swarm: [{ kind: 'petal', n: 22, rgb: ['244,140,190', '226,74,146', '255,236,246', '250,168,120'], size: [2.6, 5.5], wind: [14, -9] }, { kind: 'mote', n: 24, rgb: '255,212,150', wind: [6, -10] }],
+      burst: { kind: 'petal', n: 20 } },
+    dance: { amt: [1.25, 1, 0, 0], dir: [1, -0.08], map: [
+      { ch: 'drift', band: [0, 0.76, 0.05] }, { ch: 'drift', cut: true, el: [0.4, 0.68, 0.12, 0.16], hard: 0.6 }, { ch: 'drift', cut: true, el: [0.66, 0.7, 0.15, 0.17], hard: 0.6 }, { ch: 'drift', cut: true, el: [0.55, 0.555, 0.06, 0.04] },
+      { ch: 'sway', band: [0.76, 1, 0.04] }, { ch: 'sway', cut: true, el: [0.42, 0.84, 0.07, 0.07] }, { ch: 'sway', cut: true, el: [0.68, 0.82, 0.15, 0.06] } ],
+      swarm: [{ kind: 'petal', n: 26, rgb: ['255,206,60', '255,176,40', '255,238,150', '255,255,255'], size: [2.2, 4.6], wind: [58, -8] }],
+      burst: { kind: 'petal', n: 22 } },
+    campfire: { amt: [0.5, 0, 1, 1], fire: [0.58, 0.8], map: [
+      { ch: 'fire', el: [0.58, 0.8, 0.095, 0.075], hard: 0.35 }, { ch: 'fire', el: [0.55, 0.7, 0.6, 0.34], v: 0.38 },
+      { ch: 'glow', band: [0, 0.55, 0.05] },
+      { ch: 'sway', el: [0.1, 0.22, 0.24, 0.32], v: 0.35 }, { ch: 'sway', el: [0.9, 0.22, 0.22, 0.32], v: 0.35 }, { ch: 'sway', band: [0.87, 1, 0.03], v: 0.55 } ],
+      swarm: [{ kind: 'ember', rate: 10, at: [0.58, 0.77], spread: 0.05 }, { kind: 'firefly', n: 7, area: [0.04, 0.5, 0.96, 0.97] }],
+      burst: { kind: 'ember', n: 28 } },
+    sunset: { amt: [0.8, 0.9, 0, 1], dir: [1, 0], map: [
+      { ch: 'drift', band: [0.15, 0.5, 0.06] },
+      { ch: 'sway', band: [0.535, 0.72, 0.015], v: 0.45 }, { ch: 'sway', band: [0.75, 1, 0.03], v: 0.7 }, { ch: 'sway', cut: true, el: [0.485, 0.715, 0.13, 0.065], hard: 0.6 },
+      { ch: 'glow', band: [0.535, 0.73, 0.015] }, { ch: 'glow', el: [0.155, 0.41, 0.06, 0.035] }, { ch: 'glow', cut: true, el: [0.485, 0.715, 0.13, 0.065], hard: 0.6 } ],
+      swarm: [{ kind: 'bird', n: 3, area: [0, 0.1, 1, 0.38] }, { kind: 'firefly', n: 12, area: [0, 0.76, 1, 1], rgb: '255,214,140' }],
+      burst: { kind: 'mote', n: 16, rgb: '255,220,170' } },
+    grass: { amt: [1.2, 0, 0, 0], map: [
+      { ch: 'sway', band: [0, 1, 0] }, { ch: 'sway', cut: true, el: [0.37, 0.57, 0.17, 0.085], hard: 0.6 }, { ch: 'sway', cut: true, el: [0.62, 0.55, 0.11, 0.09], hard: 0.6 } ],
+      swarm: [{ kind: 'seed', n: 12, wind: [14, -12] }, { kind: 'mote', n: 10, rgb: '255,252,225', wind: [8, -4] }],
+      burst: { kind: 'seed', n: 12 } },
+    sunflowers: { amt: [0.35, 0, 0, 0], map: [{ ch: 'sway', el: [0.56, 0.5, 0.31, 0.16] }],
+      swarm: [{ kind: 'petal', n: 16, rgb: ['250,196,40', '245,170,30', '255,214,90'], size: [3, 6], wind: [8, 20] }],
+      burst: { kind: 'petal', n: 16 } },
+    eternity: { amt: [0, 0, 0.6, 1], map: [
+      { ch: 'fire', el: [0.5, 0.7, 0.3, 0.28], v: 0.62 }, { ch: 'fire', cut: true, el: [0.5, 0.565, 0.26, 0.035], hard: 0.8 },
+      { ch: 'glow', el: [0.5, 0.38, 0.4, 0.16] }, { ch: 'glow', el: [0.5, 0.72, 0.3, 0.26], v: 0.5 }, { ch: 'glow', cut: true, el: [0.5, 0.565, 0.26, 0.035], hard: 0.8 } ],
+      swarm: [{ kind: 'mote', n: 16, rgb: '170,200,255', wind: [4, -7] }, { kind: 'mote', n: 8, rgb: '255,170,90', wind: [4, -9] }],
+      burst: { kind: 'mote', n: 18, rgb: '255,190,120' } },
+  };
+
+  const MAP_W = 72, MAP_H = 128, MAPS = {};
+  function paintMap(key) {
+    if (MAPS[key]) return MAPS[key];
+    const cv = document.createElement('canvas'); cv.width = MAP_W; cv.height = MAP_H;
+    const c = cv.getContext('2d', { willReadFrequently: true });
+    const out = new Uint8Array(MAP_W * MAP_H * 4);
+    const white = (a) => `rgba(255,255,255,${a})`;
+    ['sway', 'drift', 'fire', 'glow'].forEach((ch, ci) => {
+      c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, MAP_W, MAP_H);
+      for (const r of LIFE[key].map) {
+        if (r.ch !== ch) continue;
+        const a = r.v ?? 1;
+        c.globalCompositeOperation = r.cut ? 'destination-out' : 'lighter';
+        if (r.band) {
+          const [y0, y1, f] = r.band;
+          const top = (y0 - f) * MAP_H, h = Math.max(1, (y1 - y0 + 2 * f) * MAP_H), e = (f * MAP_H) / h;
+          const g = c.createLinearGradient(0, top, 0, top + h);
+          g.addColorStop(0, white(f ? 0 : a)); g.addColorStop(clamp(e, 0, 0.5), white(a));
+          g.addColorStop(clamp(1 - e, 0.5, 1), white(a)); g.addColorStop(1, white(f ? 0 : a));
+          c.fillStyle = g; c.fillRect(0, top, MAP_W, h);
+        } else {
+          const [x, y, rx, ry] = r.el;
+          c.save(); c.translate(x * MAP_W, y * MAP_H); c.scale(rx * MAP_W, ry * MAP_H);
+          const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+          g.addColorStop(0, white(a)); g.addColorStop(r.hard ?? 0.5, white(a)); g.addColorStop(1, white(0));
+          c.fillStyle = g; c.fillRect(-1, -1, 2, 2); c.restore();
+        }
+      }
+      const px = c.getImageData(0, 0, MAP_W, MAP_H).data;
+      for (let i = 0; i < MAP_W * MAP_H; i++) out[i * 4 + ci] = px[i * 4 + 3];
+    });
+    return (MAPS[key] = out);
+  }
+
+  const VERT = 'attribute vec2 p;varying vec2 vUv;void main(){vUv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}';
+  const FRAG = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec2 vUv;
+uniform sampler2D uImg;
+uniform sampler2D uMap;
+uniform float uT;
+uniform float uAspect;
+uniform vec4 uAmt;
+uniform vec2 uDir;
+uniform float uWind;
+uniform vec3 uPtr;
+uniform vec2 uVel;
+uniform vec3 uRip;
+uniform float uFlare;
+
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+void main() {
+  vec4 m = texture2D(uMap, vUv);
+  float sway = m.r * uAmt.x;
+  float drift = m.g * uAmt.y;
+  float fire = m.b * uAmt.z;
+  float glow = m.a * uAmt.w;
+  vec2 disp = vec2(0.0);
+
+  // wind: travelling waves with rolling gusts
+  float n = noise(vUv * vec2(5.0, 9.0) + vec2(uT * 0.3, -uT * 0.12));
+  float wave = sin(uT * 1.8 + vUv.y * 18.0 + vUv.x * 6.0 + n * 6.2831);
+  float gust = 0.45 + 0.55 * (0.5 + 0.5 * sin(uT * 0.7 - vUv.x * 5.0 - vUv.y * 3.0));
+  float w = sway * gust * (1.0 + uWind);
+  disp += vec2(wave, wave * 0.3) * 0.0042 * w;
+
+  // a hand moving through it
+  vec2 pd = vUv - uPtr.xy;
+  pd.x *= uAspect;
+  float pr = exp(-dot(pd, pd) / 0.006) * uPtr.z;
+  float give = sway + drift * 0.5;
+  vec2 away = normalize(pd + vec2(1e-5));
+  away.x /= uAspect;
+  disp += (away * 0.005 + clamp(uVel, -2.0, 2.0) * 0.012) * pr * give;
+
+  // a ripple where she taps
+  if (uRip.z >= 0.0) {
+    vec2 rd = vUv - uRip.xy;
+    rd.x *= uAspect;
+    float dist = length(rd);
+    float rq = (dist - uRip.z * 0.3) * 15.0;
+    float ring = exp(-rq * rq) * max(0.0, 1.0 - uRip.z / 2.4);
+    vec2 out1 = normalize(rd + vec2(1e-5));
+    out1.x /= uAspect;
+    disp += out1 * ring * 0.011 * (give + glow * 0.3 + 0.12);
+  }
+
+  // flames: heat rising through a moving noise field
+  float fc = smoothstep(0.45, 1.0, fire) * (1.0 + uFlare * 1.5);
+  vec2 fq = vec2(vUv.x * 22.0, vUv.y * 12.0 + uT * 3.4);
+  disp += vec2(noise(fq) - 0.5, noise(fq + 7.3) - 0.85) * 0.012 * fc;
+
+  // clouds: a looping flow
+  float ph = uT / 8.0;
+  float p1 = fract(ph);
+  float p2 = fract(ph + 0.5);
+  float wa = 1.0 - abs(2.0 * p1 - 1.0);
+  vec2 dir = uDir * (0.7 + 0.6 * noise(vUv * 3.0 + 4.0));
+  vec3 c1 = texture2D(uImg, vUv + disp - dir * drift * 0.045 * p1).rgb;
+  vec3 c2 = texture2D(uImg, vUv + disp - dir * drift * 0.045 * p2).rgb;
+  vec3 col = mix(c2, c1, wa);
+
+  // light catching the moving grass
+  col *= 1.0 + 0.075 * wave * w;
+  // firelight that breathes
+  float fl = 0.78 + 0.22 * noise(vec2(uT * 7.0, 0.5)) + 0.08 * sin(uT * 27.0);
+  col *= 1.0 + fire * (fl - 0.86) * (1.0 + uFlare);
+  col += vec3(1.0, 0.5, 0.18) * fc * 0.11 * fl;
+  // twinkles and glints
+  float lum = dot(col, vec3(0.299, 0.587, 0.114));
+  float tw = noise(vUv * vec2(120.0, 210.0) + vec2(uT * 1.3, uT * 0.7));
+  col += col * glow * (0.12 * sin(uT * 1.6 + vUv.y * 7.0) + smoothstep(0.78, 1.0, tw) * smoothstep(0.3, 0.9, lum) * 1.4);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+  let WIND = 0;
+  // the photo, redrawn by WebGL so its grass, clouds, fire and lights can move
+  class Living {
+    constructor(plate, key) { this.p = plate; this.key = key; this.cfg = LIFE[key]; this.img = $('img', plate.pan); this.rip = -1; this.ru = 0.5; this.rv = 0.5; this.flare = 0; this.acc = 0; }
+    wake() {
+      if (this.gl || this.failed || RM) return;
+      const img = this.img;
+      if (!img.complete || !img.naturalWidth) {
+        if (!this.waiting) { this.waiting = true; img.addEventListener('load', () => { this.waiting = false; if (this.want) this.wake(); }, { once: true }); }
+        return;
+      }
+      const cv = document.createElement('canvas');
+      const sc = Math.min(1, (COARSE ? 760 : 1100) / img.naturalWidth);
+      cv.width = Math.round(img.naturalWidth * sc); cv.height = Math.round(img.naturalHeight * sc);
+      cv.className = 'live'; cv.setAttribute('aria-hidden', 'true');
+      let gl = null;
+      try { gl = cv.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: 'low-power' }); } catch (err) { gl = null; }
+      if (!gl) { this.failed = true; return; }
+      try {
+        const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+        const pr = gl.createProgram();
+        gl.attachShader(pr, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FRAG));
+        gl.linkProgram(pr);
+        if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+        gl.useProgram(pr);
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        const loc = gl.getAttribLocation(pr, 'p');
+        gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        const tex = (unit, upload) => {
+          gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+          [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach((k) => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR));
+          [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach((k) => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE));
+          upload();
+        };
+        tex(0, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img));
+        tex(1, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, MAP_W, MAP_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, paintMap(this.key)));
+        const U = {};
+        ['uImg', 'uMap', 'uT', 'uAspect', 'uAmt', 'uDir', 'uWind', 'uPtr', 'uVel', 'uRip', 'uFlare'].forEach((k) => { U[k] = gl.getUniformLocation(pr, k); });
+        gl.uniform1i(U.uImg, 0); gl.uniform1i(U.uMap, 1);
+        gl.uniform1f(U.uAspect, img.naturalWidth / img.naturalHeight);
+        gl.uniform4fv(U.uAmt, this.cfg.amt);
+        const d = this.cfg.dir || [1, 0]; gl.uniform2f(U.uDir, d[0], d[1]);
+        gl.viewport(0, 0, cv.width, cv.height);
+        this.U = U;
+      } catch (err) { this.failed = true; return; }
+      cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); if (this.cv === cv) this.drop(); });
+      this.p.pan.appendChild(cv);
+      this.cv = cv; this.gl = gl; this.shown = false;
+    }
+    drop() { if (this.cv) this.cv.remove(); this.cv = null; this.gl = null; }
+    sleep() {
+      if (!this.gl) return;
+      const ext = this.gl.getExtension('WEBGL_lose_context');
+      this.drop();
+      if (ext) ext.loseContext();
+    }
+    render(dt, t, ptr) {
+      const gl = this.gl; if (!gl) return;
+      if (this.rip >= 0) { this.rip += dt; if (this.rip > 2.4) this.rip = -1; }
+      this.flare = Math.max(0, this.flare - dt * 0.7);
+      const U = this.U;
+      gl.uniform1f(U.uT, t % 1000);
+      gl.uniform1f(U.uWind, WIND);
+      gl.uniform3f(U.uPtr, ptr.u, ptr.v, ptr.on);
+      gl.uniform2f(U.uVel, ptr.vu, ptr.vv);
+      gl.uniform3f(U.uRip, this.ru, this.rv, this.rip);
+      gl.uniform1f(U.uFlare, this.flare);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (!this.shown) { this.shown = true; this.cv.classList.add('is-on'); }
+    }
+  }
+
+  // petals, seeds, sparks, fireflies and birds drawn over the photo
+  const GLOWS = {};
+  const glowSprite = (rgb) => {
+    if (GLOWS[rgb]) return GLOWS[rgb];
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, `rgba(${rgb},1)`); g.addColorStop(0.22, `rgba(${rgb},.6)`); g.addColorStop(1, `rgba(${rgb},0)`);
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    return (GLOWS[rgb] = c);
+  };
+  const pick = (a) => (Array.isArray(a) ? a[(Math.random() * a.length) | 0] : a);
+  const DENS = COARSE ? 0.7 : 1;
+  class Swarm {
+    constructor(win, plate, cfg) { this.win = win; this.p = plate; this.groups = cfg.swarm || []; this.burstCfg = cfg.burst; this.items = []; this.awake = false; this.W = 0; this.H = 0; }
+    wake() {
+      if (this.awake || RM || !(this.groups.length || this.burstCfg)) return;
+      if (!this.cv) {
+        this.cv = document.createElement('canvas'); this.cv.className = 'fx'; this.cv.setAttribute('aria-hidden', 'true');
+        this.win.insertBefore(this.cv, $('.shade', this.win)); this.ctx = this.cv.getContext('2d');
+      }
+      this.awake = true; this.size(); this.items = [];
+      for (const g of this.groups) if (g.n) for (let i = 0; i < Math.round(g.n * DENS); i++) this.items.push(this.make(g, 'init'));
+    }
+    sleep() { this.awake = false; this.items = []; if (this.ctx) this.ctx.clearRect(0, 0, this.W, this.H); }
+    size() {
+      if (!this.cv) return;
+      const d = Math.min(window.devicePixelRatio || 1, 2);
+      this.W = this.win.clientWidth; this.H = this.win.clientHeight;
+      this.cv.width = Math.round(this.W * d); this.cv.height = Math.round(this.H * d);
+      this.ctx.setTransform(d, 0, 0, d, 0, 0);
+    }
+    make(g, mode, x, y) {
+      const W = this.W, H = this.H, k = g.kind;
+      const p = { g, k, age: 0, life: Infinity, ph: rnd(0, 6.28) };
+      const wx = g.wind ? g.wind[0] : 0, wy = g.wind ? g.wind[1] : 0;
+      if (mode !== 'burst') {
+        if (mode === 'init') { x = rnd(0, W); y = rnd(0, H); }
+        else if (Math.abs(wy) > Math.abs(wx)) { x = rnd(0, W); y = wy > 0 ? -12 : H + 12; }
+        else { x = wx >= 0 ? -12 : W + 12; y = rnd(0, H); }
+      }
+      p.x = x; p.y = y; p.vx = wx; p.vy = wy;
+      if (k === 'petal') { const s = g.size || [2.5, 5]; p.s = rnd(s[0], s[1]); p.c = pick(g.rgb || '255,255,255'); p.rot = rnd(0, 6.28); p.spin = rnd(-1.6, 1.6); p.fs = rnd(2.5, 6); }
+      else if (k === 'mote') { p.r = rnd(0.6, 1.9); p.a = rnd(0.3, 0.8); p.c = pick(g.rgb || '255,250,230'); p.tw = rnd(0.6, 2); }
+      else if (k === 'seed') { p.r = rnd(3, 5.5); p.rot = rnd(0, 6.28); p.spin = rnd(-0.6, 0.6); p.a = rnd(0.55, 0.9); }
+      else if (k === 'firefly') {
+        const A = g.area;
+        if (mode !== 'burst') { p.x = rnd(A[0], A[2]) * W; p.y = rnd(A[1], A[3]) * H; }
+        p.dir = rnd(0, 6.28); p.sp = rnd(8, 18); p.c = g.rgb || '214,255,150'; p.bs = rnd(0.8, 1.8); p.vx = 0; p.vy = 0;
+      } else if (k === 'bird') {
+        const A = g.area;
+        p.x = mode === 'init' ? rnd(-W, W) : -rnd(30, W * 1.6); p.y0 = rnd(A[1], A[3]) * H; p.y = p.y0;
+        p.sp = rnd(16, 28); p.s = rnd(4, 7.5); p.fl = rnd(5, 8);
+      } else if (k === 'ember') { p.life = rnd(1.1, 2.6); p.r = rnd(0.7, 1.8); p.vx = rnd(-14, 14); p.vy = -rnd(45, 110); }
+      return p;
+    }
+    burst(x, y, big) {
+      const b = this.burstCfg;
+      if (!b || !this.awake) return;
+      const base = this.groups.find((q) => q.kind === b.kind) || { kind: b.kind, wind: [0, -10] };
+      const g = b.rgb ? { ...base, rgb: b.rgb } : base;
+      const n = Math.round(b.n * (big ? 1.7 : 1) * DENS);
+      for (let i = 0; i < n; i++) {
+        const p = this.make(g, 'burst', x + rnd(-6, 6), y + rnd(-6, 6));
+        const a = rnd(0, 6.28), sp = rnd(40, 170) * (b.kind === 'ember' ? 1.3 : 1);
+        p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp - (b.kind === 'ember' ? 90 : 40);
+        p.life = rnd(1.6, 3.4);
+        this.items.push(p);
+      }
+    }
+    step(dt, t, ptr) {
+      if (!this.awake) return;
+      const ctx = this.ctx, W = this.W, H = this.H;
+      for (const g of this.groups) {
+        if (!g.rate) continue;
+        g.acc = (g.acc || 0) + g.rate * DENS * dt;
+        while (g.acc >= 1) {
+          g.acc -= 1;
+          const pt = this.p.toLocal(g.at[0] + rnd(-g.spread, g.spread), g.at[1] + rnd(-0.01, 0.01));
+          this.items.push(this.make(g, 'burst', pt.x, pt.y));
+        }
+      }
+      const gx = WIND * 30, gy = -WIND * 45, R = 110;
+      for (let i = this.items.length - 1; i >= 0; i--) {
+        const p = this.items[i], g = p.g, k = p.k;
+        p.age += dt;
+        if (p.age > p.life) { this.items.splice(i, 1); continue; }
+        if (ptr.on > 0.05) {
+          const dx = p.x - ptr.x, dy = p.y - ptr.y, d2 = dx * dx + dy * dy;
+          if (d2 < R * R) {
+            const d = Math.sqrt(d2) + 0.01, f = (1 - d / R) * ptr.on;
+            p.vx += ((dx / d) * 520 + ptr.vx * 2.2) * f * dt;
+            p.vy += ((dy / d) * 520 + ptr.vy * 2.2) * f * dt;
+          }
+        }
+        if (k === 'petal' || k === 'mote' || k === 'seed') {
+          const wx = g.wind ? g.wind[0] : 0, wy = g.wind ? g.wind[1] : 0;
+          const tx = wx * (1 + 0.35 * Math.sin(t * 0.6 + p.ph)) + gx;
+          const ty = wy + Math.sin(t * 1.3 + p.ph) * (k === 'mote' ? 4 : 9) + gy;
+          const e = Math.min(1, dt * (k === 'mote' ? 0.8 : 1.4));
+          p.vx += (tx - p.vx) * e; p.vy += (ty - p.vy) * e;
+        } else if (k === 'firefly') {
+          p.dir += Math.sin(t * 0.9 + p.ph) * 1.6 * dt;
+          const e = Math.min(1, dt * 2);
+          p.vx += (Math.cos(p.dir) * p.sp - p.vx) * e; p.vy += (Math.sin(p.dir) * p.sp * 0.6 - p.vy) * e;
+          const A = g.area;
+          if (p.y < A[1] * H) p.vy += 30 * dt; if (p.y > A[3] * H) p.vy -= 30 * dt;
+          if (p.x < A[0] * W) p.vx += 30 * dt; if (p.x > A[2] * W) p.vx -= 30 * dt;
+        } else if (k === 'bird') {
+          p.vx = p.sp; p.vy = 0; p.y = p.y0 + Math.sin(p.age * 0.5 + p.ph) * 8;
+        } else if (k === 'ember') {
+          p.vx += Math.sin(p.age * 6 + p.ph) * 40 * dt; p.vy -= 8 * dt;
+        }
+        p.x += p.vx * dt;
+        if (k !== 'bird') p.y += p.vy * dt;
+        if (p.life === Infinity && (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40)) {
+          if (k === 'firefly') { p.x = clamp(p.x, 0, W); p.y = clamp(p.y, 0, H); p.dir += Math.PI; }
+          else this.items[i] = this.make(g, 'edge');
+        }
+      }
+      ctx.clearRect(0, 0, W, H);
+      // solid things first
+      for (const p of this.items) {
+        const fade = p.life === Infinity ? 1 : Math.max(0, 1 - p.age / p.life);
+        if (p.k === 'petal') {
+          const fl = Math.cos(t * p.fs + p.ph);
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + t * p.spin);
+          ctx.scale(p.s * (0.25 + 0.75 * Math.abs(fl)), p.s * 0.55);
+          ctx.globalAlpha = 0.9 * fade; ctx.fillStyle = `rgb(${p.c})`;
+          ctx.beginPath(); ctx.moveTo(-1, 0); ctx.quadraticCurveTo(0, -1.25, 1, 0); ctx.quadraticCurveTo(0, 1.25, -1, 0); ctx.fill();
+          ctx.restore();
+        } else if (p.k === 'seed') {
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + t * p.spin);
+          ctx.globalAlpha = p.a * fade; ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          for (let j = 0; j < 9; j++) { const a = (j / 9) * 6.283; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * p.r, Math.sin(a) * p.r); }
+          ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 0.9, 0, 6.283); ctx.fill();
+          ctx.restore();
+        } else if (p.k === 'bird') {
+          const f = Math.sin(t * p.fl + p.ph) * p.s * 0.55, s = p.s;
+          ctx.globalAlpha = 0.72; ctx.strokeStyle = '#2a1712'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(p.x - s, p.y - f); ctx.quadraticCurveTo(p.x - s * 0.45, p.y - s * 0.25, p.x, p.y);
+          ctx.quadraticCurveTo(p.x + s * 0.45, p.y - s * 0.25, p.x + s, p.y - f); ctx.stroke();
+        }
+      }
+      // then light
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of this.items) {
+        const fade = p.life === Infinity ? 1 : Math.max(0, 1 - p.age / p.life);
+        let a = 0, s = 0, c = '';
+        if (p.k === 'mote') { a = p.a * (0.55 + 0.45 * Math.sin(t * p.tw + p.ph)) * fade; s = p.r * 7; c = p.c; }
+        else if (p.k === 'firefly') { const b = Math.pow(Math.max(0, Math.sin(t * p.bs + p.ph)), 3); a = 0.15 + 0.85 * b; s = 12 + 9 * b; c = p.c; }
+        else if (p.k === 'ember') { a = Math.pow(fade, 1.3) * (0.7 + 0.3 * Math.sin(t * 20 + p.ph)); s = p.r * 8; c = '255,150,60'; }
+        else continue;
+        ctx.globalAlpha = clamp(a, 0, 1);
+        ctx.drawImage(glowSprite(c), p.x - s / 2, p.y - s / 2, s, s);
+        if (p.k === 'ember') ctx.drawImage(glowSprite('255,232,190'), p.x - s / 5, p.y - s / 5, s / 2.5, s / 2.5);
+      }
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    }
+  }
+
+  class Life {
+    constructor(plate, win, key) {
+      this.p = plate; this.win = win; this.cfg = LIFE[key];
+      this.gl = new Living(plate, key); this.sw = new Swarm(win, plate, this.cfg);
+      this.awake = false; this.acc = 0; this.n = 0;
+      this.ptr = { x: -999, y: -999, vx: 0, vy: 0, on: 0, u: -9, v: -9, vu: 0, vv: 0, lx: null, ly: null };
+      plate.life = this;
+    }
+    wake() { if (RM || this.awake) return; this.awake = true; this.gl.want = true; this.gl.wake(); this.sw.wake(); }
+    sleep() { if (!this.awake) return; this.awake = false; this.gl.want = false; this.gl.sleep(); this.sw.sleep(); }
+    frame(dt, t) {
+      if (!this.awake) return;
+      if (!this.gl.gl && !this.gl.failed && !this.gl.waiting) this.gl.wake();
+      const P = this.ptr, r = this.win.getBoundingClientRect();
+      const x = M.px - r.left, y = M.py - r.top;
+      const inside = x >= 0 && y >= 0 && x <= r.width && y <= r.height;
+      const active = inside && ((MOTION && M.inside) || performance.now() - M.touchAt < 700);
+      P.on = damp(P.on, active ? 1 : 0, 6, dt);
+      if (active) {
+        if (P.lx != null) {
+          P.vx = damp(P.vx, (x - P.lx) / Math.max(dt, 1e-3), 10, dt);
+          P.vy = damp(P.vy, (y - P.ly) / Math.max(dt, 1e-3), 10, dt);
+        }
+        P.x = x; P.y = y; P.lx = x; P.ly = y;
+      } else { P.vx = damp(P.vx, 0, 4, dt); P.vy = damp(P.vy, 0, 4, dt); P.lx = P.ly = null; }
+      P.vx = clamp(P.vx, -2500, 2500); P.vy = clamp(P.vy, -2500, 2500);
+      const uv = this.p.fromLocal(P.x, P.y), z = this.p.geo().z;
+      P.u = uv.u; P.v = uv.v; P.vu = P.vx / (this.p.pw * z); P.vv = P.vy / (this.p.ph * z);
+      // phones redraw the photo at 30 fps; the petals still move at full speed
+      this.acc += dt; this.n++;
+      if (!COARSE || this.n % 2 === 0) { this.gl.render(this.acc, t, P); this.acc = 0; }
+      this.sw.step(dt, t, P);
+    }
+    tap(x, y) {
+      const uv = this.p.fromLocal(x, y);
+      this.gl.ru = uv.u; this.gl.rv = uv.v; this.gl.rip = 0;
+      let big = false;
+      if (this.cfg.fire) {
+        const dx = (uv.u - this.cfg.fire[0]) * 0.56, dy = uv.v - this.cfg.fire[1];
+        if (Math.hypot(dx, dy) < 0.09) { this.gl.flare = 1; big = true; }
+      }
+      this.sw.burst(x, y, big);
+    }
+  }
+  const LIVES = [];
+  [[P0, '#win0', 'daisy'], ...SCENES.map((sc) => [sc.plate, sc.el.querySelector('.win'), sc.key]), [PA, '#sAsk .win', 'sunflowers'], [PE, '#after .win', 'eternity']]
+    .forEach(([plate, win, key]) => LIVES.push(new Life(plate, typeof win === 'string' ? $(win) : win, key)));
+  let curIdx = 0;
 
   /* State ------------------------------------------------------------------ */
   const state = { answered: false, answer: null, msg: '', unlocked: false };
@@ -947,7 +1431,7 @@ html:not(.is-land) .foot { display: none; }
   }
 
   function bloom() {
-    try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* not available */ }
+    try { if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(12); } catch (err) { /* not available */ }
     lines.paper.hide();
     gsap.to(holdEl, { autoAlpha: 0, duration: 0.8, delay: 0.3 });
     gsap.timeline()
@@ -1005,15 +1489,20 @@ html:not(.is-land) .foot { display: none; }
   const askFx = {
     show() {
       gsap.to(cueEl, { autoAlpha: 0, duration: 0.4, overwrite: true });
-      if (state.answered) { gsap.set(afterEl, { autoAlpha: 1, clipPath: 'none' }); PE.live = true; }
+      if (state.answered) { gsap.set(afterEl, { autoAlpha: 1, clipPath: 'none' }); afterOn(true); }
       else askParts.forEach((p) => p.show());
     },
     hide() {
       if (state.unlocked) gsap.to(cueEl, { autoAlpha: 1, duration: 0.6, overwrite: true });
       askParts.forEach((p) => p.hide());
       gsap.to(afterEl, { autoAlpha: 0, duration: D(0.4), overwrite: true });
+      afterOn(false);
     },
   };
+  function afterOn(on) {
+    state.afterOn = on; PE.live = on;
+    if (on) PE.life.wake(); else PE.life.sleep();
+  }
   const steps = [];
   FRAMES.forEach((f, k) => {
     if (k === 0 || f.ask) return;
@@ -1022,6 +1511,8 @@ html:not(.is-land) .foot { display: none; }
     steps.push({ from: s + 0.75, ...fx.fade(eb, { y: 10 }) });
     steps.push({ from: s + 0.8, ...fx.words(ti, { st: 0.06, delay: 0.1 }) });
     steps.push({ from: s + 1.35, ...fx.words(su, { st: 0.035 }) });
+    const hint = $('.hint', f.el);
+    if (hint) steps.push({ from: s + 1.75, ...fx.fade(hint, { y: 8 }) });
   });
   steps.push({ from: ASK_AT, ...askFx });
   const storySteps = Steps(steps);
@@ -1039,6 +1530,9 @@ html:not(.is-land) .foot { display: none; }
       f.plate.el.classList.toggle('is-live', shown);
     });
     field.live = t < startOf(1) + 1.05;
+    // keep the living pictures around the current frame awake, put far ones to sleep
+    curIdx = ci;
+    FRAMES.forEach((f, k) => { const d = Math.abs(k - ci); if (d <= 1) f.plate.life.wake(); else if (d >= 3) f.plate.life.sleep(); });
     if (!state.unlocked) return;
     const f = FRAMES[ci];
     setChapter(state.answered && t >= ASK_AT ? '04 — Just us' : f.chapter);
@@ -1098,7 +1592,7 @@ html:not(.is-land) .foot { display: none; }
     const r = btn.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     const R = Math.hypot(Math.max(cx, vp.w - cx), Math.max(cy, vp.h - cy)) + 20;
-    PE.live = true; tickPlate(PE);
+    afterOn(true); tickPlate(PE);
     gsap.set(['#ticket', '#afterBack'], { autoAlpha: 0 });
     gsap.set(afterEl, { autoAlpha: 1, clipPath: `circle(0px at ${cx}px ${cy}px)` });
     gsap.to(afterEl, { clipPath: `circle(${R}px at ${cx}px ${cy}px)`, duration: D(1.7), ease: 'expo.inOut', delay: 0.25, onComplete: () => gsap.set(afterEl, { clipPath: 'none' }) });
@@ -1109,7 +1603,7 @@ html:not(.is-land) .foot { display: none; }
   $$('[data-answer]').forEach((b) => b.addEventListener('click', () => answer(b.dataset.answer, b)));
   $('#afterBack').addEventListener('click', () => {
     state.answered = false;
-    gsap.to(afterEl, { autoAlpha: 0, duration: D(0.7), ease: 'power2.inOut' });
+    gsap.to(afterEl, { autoAlpha: 0, duration: D(0.7), ease: 'power2.inOut', onComplete: () => { if (!state.answered) afterOn(false); } });
     gsap.delayedCall(RM ? 0 : 0.4, () => askParts.forEach((p) => p.show()));
     setChapter(FRAMES[FRAMES.length - 1].chapter); setTone(true);
   });
@@ -1124,14 +1618,27 @@ html:not(.is-land) .foot { display: none; }
   });
   $('#markLink').addEventListener('click', (e) => { e.preventDefault(); if (state.unlocked && !busy) lenis.scrollTo(0, { duration: 2.4 }); });
 
+  // a tap sends a ripple through the picture and throws a handful of petals, seeds or sparks
+  $('#story').addEventListener('pointerdown', (e) => {
+    if (RM || !field.done || e.target.closest('button, a')) return;
+    const L = state.afterOn ? PE.life : FRAMES[curIdx].plate.life;
+    if (!L || !L.awake) return;
+    const r = L.win.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (x < 0 || y < 0 || x > r.width || y > r.height) return;
+    L.tap(x, y);
+  });
+
   /* Frame loop ------------------------------------------------------------- */
   gsap.ticker.add((time, dtMs) => {
     const dt = Math.min(dtMs / 1000, 0.05);
     M.x = damp(M.x, M.tx, 3, dt); M.y = damp(M.y, M.ty, 3, dt);
     V = damp(V, Math.abs(lenis.velocity || 0), 6, dt);
+    WIND = damp(WIND, Math.min(V * 0.03, 1.4), 3, dt);
     updateHold(dt);
     if (field.live && field.intro > 0) drawField(dt, time);
     for (const p of plates) if (p.live) tickPlate(p);
+    for (const L of LIVES) if (L.awake && L.p.live) L.frame(dt, time);
     if (FRAMES[0].plate.live) updateBF(dt, time);
     for (const p of parEls) {
       const t = `translate3d(${(M.x * p.k).toFixed(2)}px,${(M.y * p.k * 0.6).toFixed(2)}px,0)`;
@@ -1153,6 +1660,7 @@ html:not(.is-land) .foot { display: none; }
       if (!FINE && w === rw && Math.abs(h - rh) < 160) return;
       rw = w; rh = h;
       setVh(); measureAll(); fieldResize();
+      LIVES.forEach((L) => { if (L.sw.awake) L.sw.size(); });
       ScrollTrigger.refresh();
     }, 200);
   });
@@ -1185,6 +1693,7 @@ html:not(.is-land) .foot { display: none; }
     setProg(100);
     setVh(); measureAll(); fieldResize();
     ScrollTrigger.refresh();
+    FRAMES[0].plate.life.wake(); FRAMES[1].plate.life.wake();
     gsap.timeline({ delay: RM ? 0.1 : 0.5 })
       .to(['.loader__mark', '.loader__bar', '.loader__count'], { autoAlpha: 0, duration: D(0.8), ease: 'power2.in' })
       .add(() => { loaderEl.remove(); prologue(); }, '+=0.4');
