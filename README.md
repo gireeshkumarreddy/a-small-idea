@@ -23,8 +23,9 @@ A short film-strip website that turns into an invitation.
 
 - `invitation.html` — the page (styles, markup and script in one file)
 - `assets/` — the ten images
-- `build.mjs` — wraps the page into a standalone site in `site/`
-- `site/` — the deployable result
+- `build.mjs` — wraps the page into a standalone site in `docs/`
+- `docs/` — the deployable result, served by GitHub Pages
+- `og.jpg` — the link-preview image
 
 ## Personalise
 
@@ -41,7 +42,10 @@ const CONFIG = {
 For WhatsApp: `{ channel: 'whatsapp', to: '919876543210' }` (country code + number, digits only).
 Then run `node build.mjs`.
 
-## Deploy
+## Live site
 
-Drag `site/` onto https://app.netlify.com/drop, or preview locally with
-`python -m http.server 5173 --directory site`.
+https://gireeshkumarreddy.github.io/a-small-idea/
+
+GitHub Pages serves the `docs/` folder on `main`. After changing anything, run `node build.mjs`,
+commit and push; the site updates in a minute or two.
+Preview locally with `python -m http.server 5173 --directory docs`.

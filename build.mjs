@@ -1,6 +1,9 @@
-// Wraps invitation.html into a standalone site in ./site (deployable to Netlify, Vercel, GitHub Pages…).
+// Wraps invitation.html into a standalone site in ./docs, which GitHub Pages serves.
 // Run: node build.mjs
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'node:fs';
+
+const OUT = 'docs';
+const URL = 'https://gireeshkumarreddy.github.io/a-small-idea/';
 
 const src = readFileSync('invitation.html', 'utf8');
 const [head, body] = src.split('<!-- /head -->');
@@ -14,6 +17,11 @@ const html = `<!doctype html>
 <meta property="og:title" content="A small idea.">
 <meta property="og:description" content="Open when you have a minute.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="${URL}">
+<meta property="og:image" content="${URL}og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 ${head.trim()}
 </head>
 <body>
@@ -22,8 +30,10 @@ ${body.trim()}
 </html>
 `;
 
-rmSync('site', { recursive: true, force: true });
-mkdirSync('site/assets', { recursive: true });
-writeFileSync('site/index.html', html);
-for (const f of readdirSync('assets')) copyFileSync(`assets/${f}`, `site/assets/${f}`);
-console.log('Built site/index.html');
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(`${OUT}/assets`, { recursive: true });
+writeFileSync(`${OUT}/index.html`, html);
+writeFileSync(`${OUT}/.nojekyll`, '');
+copyFileSync('og.jpg', `${OUT}/og.jpg`);
+for (const f of readdirSync('assets')) copyFileSync(`assets/${f}`, `${OUT}/assets/${f}`);
+console.log(`Built ${OUT}/index.html`);
